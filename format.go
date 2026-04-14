@@ -34,7 +34,7 @@ func formatMarkdown(date string, activities []RepoActivity) string {
 				fmt.Fprintf(&b, "**%s** ", c.Time)
 			}
 			fmt.Fprintf(&b, "`%s` %s", c.Hash, c.Subject)
-			if c.Insertions > 0 || c.gDeletions > 0 {
+			if c.Insertions > 0 || c.Deletions > 0 {
 				fmt.Fprintf(&b, " (+%d/-%d)", c.Insertions, c.Deletions)
 			}
 			if c.Ref != "" {
