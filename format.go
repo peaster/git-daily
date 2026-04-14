@@ -9,11 +9,9 @@ func formatMarkdown(date string, activities []RepoActivity) string {
 	var totalCommits, totalFiles, totalIns, totalDel int
 	for _, ra := range activities {
 		totalCommits += len(ra.Commits)
-		for _, c := range ra.Commits {
-			totalFiles += c.Files
-			totalIns += c.Insertions
-			totalDel += c.Deletions
-		}
+		totalFiles += ra.TotalFiles
+		totalIns += ra.TotalIns
+		totalDel += ra.TotalDel
 	}
 
 	if totalCommits == 0 {
