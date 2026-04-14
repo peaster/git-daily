@@ -43,9 +43,16 @@ ARGUMENTS
                 as separate arguments. Defaults to the current directory
                 if none are provided.
 
+ENVIRONMENT
+  GIT_DAILY_AUTHORS   Comma-separated list of author identities to match.
+                      Useful when you commit under multiple emails or names.
+                      Example:
+                        export GIT_DAILY_AUTHORS="peaster,me@work.com,me@home.com"
+                      If not set, falls back to git config user.email and
+                      user.name from the current environment.
+
 BEHAVIOR
-  - Identifies the current git user via git config user.email (preferred)
-    or git config user.name and filters commits to only that author.
+  - Matches commits by any of the configured author identities.
   - Merge commits are excluded.
   - For each commit: reports short hash, commit message, time of day,
     and insertions/deletions.
@@ -57,10 +64,10 @@ OUTPUT
 
     ## Git Activity — YYYY-MM-DD
 
-    _N commits across repos | +INSERTIONS -DELETIONS in FILES files_
+    > N commits across repos · +INSERTIONS/-DELETIONS lines · FILES files changed
 
     ### repo-name (N commits)
-    - `shorthash` Commit message _(HH:MM)_ — +12/-3
+    - **HH:MM** `shorthash` Commit message (+12/-3)
 
 EXAMPLES
   git-daily                              # today, repos under cwd
@@ -117,19 +124,24 @@ TARGET_DATE=$(resolve_date "${DATE_INPUT:-today}")
 
 # --- Identify git user -------------------------------------------------------
 
-GIT_USER_NAME=$(git config user.name 2>/dev/null || echo "")
-GIT_USER_EMAIL=$(git config user.email 2>/dev/null || echo "")
+AUTHOR_FLAGS=()
 
-if [[ -z "$GIT_USER_NAME" && -z "$GIT_USER_EMAIL" ]]; then
-  echo "Error: Cannot determine git user. Set git config user.name or user.email." >&2
-  exit 1
+if [[ -n "${GIT_DAILY_AUTHORS:-}" ]]; then
+  IFS=',' read -ra _authors <<< "$GIT_DAILY_AUTHORS"
+  for author in "${_authors[@]}"; do
+    author=$(echo "$author" | xargs) # trim whitespace
+    [[ -n "$author" ]] && AUTHOR_FLAGS+=("--author=$author")
+  done
+else
+  GIT_USER_NAME=$(git config user.name 2>/dev/null || echo "")
+  GIT_USER_EMAIL=$(git config user.email 2>/dev/null || echo "")
+  [[ -n "$GIT_USER_EMAIL" ]] && AUTHOR_FLAGS+=("--author=$GIT_USER_EMAIL")
+  [[ -n "$GIT_USER_NAME" ]] && AUTHOR_FLAGS+=("--author=$GIT_USER_NAME")
 fi
 
-# Build author match — prefer email since it's more unique
-if [[ -n "$GIT_USER_EMAIL" ]]; then
-  AUTHOR_FLAG="--author=$GIT_USER_EMAIL"
-else
-  AUTHOR_FLAG="--author=$GIT_USER_NAME"
+if [[ ${#AUTHOR_FLAGS[@]} -eq 0 ]]; then
+  echo "Error: Cannot determine git user. Set GIT_DAILY_AUTHORS or git config user.name/user.email." >&2
+  exit 1
 fi
 
 # --- Find git repos ----------------------------------------------------------
@@ -158,8 +170,8 @@ OUTPUT=""
 
 while IFS= read -r repo; do
   # Get commits for this repo on the target date
-  LOG=$(git -C "$repo" log \
-    "$AUTHOR_FLAG" \
+  LOG=$(git -C "$repo" log --all \
+    "${AUTHOR_FLAGS[@]}" \
     --after="${TARGET_DATE}T00:00:00" \
     --before="${TARGET_DATE}T23:59:59" \
     --pretty=format:"%h|%aI|%s" \
@@ -188,9 +200,10 @@ while IFS= read -r repo; do
 
     time_part=$(echo "$timestamp" | sed -n 's/.*T\([0-9][0-9]:[0-9][0-9]\).*/\1/p')
 
-    REPO_OUTPUT+="- \`${hash}\` ${subject}"
-    [[ -n "$time_part" ]] && REPO_OUTPUT+=" _(${time_part})_"
-    [[ "$ins" -gt 0 || "$del" -gt 0 ]] && REPO_OUTPUT+=" — +${ins}/-${del}"
+    REPO_OUTPUT+="- "
+    [[ -n "$time_part" ]] && REPO_OUTPUT+="**${time_part}** "
+    REPO_OUTPUT+="\`${hash}\` ${subject}"
+    [[ "$ins" -gt 0 || "$del" -gt 0 ]] && REPO_OUTPUT+=" (+${ins}/-${del})"
     REPO_OUTPUT+=$'\n'
 
     REPO_COMMITS=$((REPO_COMMITS + 1))
@@ -215,7 +228,7 @@ fi
 
 echo "## Git Activity — ${TARGET_DATE}"
 echo ""
-echo "_${TOTAL_COMMITS} commits across repos | +${TOTAL_INSERTIONS} -${TOTAL_DELETIONS} in ${TOTAL_FILES} files_"
+echo "> ${TOTAL_COMMITS} commits across repos · +${TOTAL_INSERTIONS}/-${TOTAL_DELETIONS} lines · ${TOTAL_FILES} files changed"
 echo ""
 echo "$OUTPUT"
 
