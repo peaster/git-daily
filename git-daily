@@ -19,91 +19,59 @@ set -euo pipefail
 
 help() {
   cat <<'HELPEOF'
-<tool name="git-daily">
-  <purpose>
-    Extract a user's git commit history for a specific day across one or more
-    local repositories. Outputs structured Markdown to stdout, intended for
-    injection into daily notes, standups, or activity logs.
-  </purpose>
+git-daily — Extract your git activity across repos for a specific day.
 
-  <when_to_use>
-    - The user asks you to summarize what they worked on today or a given day.
-    - The user wants their git activity added to a daily note or journal.
-    - The user wants a standup summary or changelog from local repos.
-    - You need to understand what code changes the user made on a specific date.
-  </when_to_use>
+USAGE
+  git-daily [OPTIONS] [DATE] [REPO_DIR...]
 
-  <invocation>
-    git-daily [DATE] [REPO_DIR...]
-  </invocation>
+OPTIONS
+  -h, --help    Show this help message and exit.
 
-  <arguments>
-    <arg name="DATE" required="false" default="today">
-      The target date. Accepts YYYY-MM-DD format, or the keywords "today" or
-      "yesterday". Only one date can be specified. The tool extracts activity
-      for that single calendar day (midnight to midnight, local time).
-    </arg>
-    <arg name="REPO_DIR" required="false" default="." repeatable="true">
-      One or more directories to search for git repositories. Each directory
-      is searched recursively up to 3 levels deep for .git folders. If a
-      directory is itself a git repo, it is included. Multiple directories
-      can be specified as separate arguments.
-    </arg>
-  </arguments>
+ARGUMENTS
+  DATE          The target date for activity lookup.
+                Accepts:
+                  YYYY-MM-DD   A specific calendar date (e.g. 2026-04-14)
+                  today        Today's date (default if omitted)
+                  yesterday    Yesterday's date
+                Only one date may be specified. Activity is extracted for
+                that single calendar day (midnight to midnight, local time).
 
-  <behavior>
-    - Identifies the current git user via `git config user.email` (preferred)
-      or `git config user.name` and filters commits to only that author.
-    - Merge commits are excluded (--no-merges).
-    - For each commit: reports short hash, commit message, time of day,
-      and insertions/deletions (shortstat level, no per-file breakdown).
-    - If no commits are found, prints "No git activity found for DATE." and
-      exits with code 0.
-    - Works on both Linux (GNU date) and macOS (BSD date).
-  </behavior>
+  REPO_DIR      One or more directories to search for git repositories.
+                Each directory is searched recursively up to 3 levels deep
+                for .git folders. If a directory is itself a git repo, it
+                is included directly. Multiple directories can be specified
+                as separate arguments. Defaults to the current directory
+                if none are provided.
 
-  <output_format>
-    Markdown printed to stdout. Structure:
+BEHAVIOR
+  - Identifies the current git user via git config user.email (preferred)
+    or git config user.name and filters commits to only that author.
+  - Merge commits are excluded.
+  - For each commit: reports short hash, commit message, time of day,
+    and insertions/deletions.
+  - If no commits are found, prints a message and exits with code 0.
+  - Works on both Linux (GNU date) and macOS (BSD date).
 
-    ```
+OUTPUT
+  Markdown printed to stdout:
+
     ## Git Activity — YYYY-MM-DD
 
     _N commits across repos | +INSERTIONS -DELETIONS in FILES files_
 
     ### repo-name (N commits)
-    - `shorthash` Commit message subject _(HH:MM)_ — +12/-3
-    - `shorthash` Another commit message _(HH:MM)_ — +45/-20
+    - `shorthash` Commit message _(HH:MM)_ — +12/-3
 
-    ### another-repo (N commits)
-    - `shorthash` Yet another commit _(HH:MM)_ — +8/-0
-    ```
-  </output_format>
+EXAMPLES
+  git-daily                              # today, repos under cwd
+  git-daily 2026-04-14                   # specific day, repos under cwd
+  git-daily 2026-04-14 ~/projects        # specific day, specific directory
+  git-daily yesterday ~/work ~/oss       # yesterday, multiple search roots
+  ACTIVITY=$(git-daily 2026-04-14)       # capture output into a variable
 
-  <examples>
-    <example description="Get today's activity from repos under current directory">
-      git-daily
-    </example>
-    <example description="Get activity for a specific date from a specific directory">
-      git-daily 2026-04-14 ~/projects
-    </example>
-    <example description="Get yesterday's activity across multiple repo roots">
-      git-daily yesterday ~/work ~/oss ~/personal
-    </example>
-    <example description="Capture output into a variable for injection into a file">
-      ACTIVITY=$(git-daily 2026-04-14 ~/projects)
-    </example>
-  </examples>
-
-  <error_conditions>
-    - Exit 1: Invalid date format (not YYYY-MM-DD, "today", or "yesterday").
-    - Exit 1: No git user configured (neither user.name nor user.email set).
-    - Exit 0 with message: No commits found for the given date.
-  </error_conditions>
-
-  <dependencies>
-    git, bash, find, date, sed, sort, realpath
-  </dependencies>
-</tool>
+EXIT CODES
+  0    Success (including when no commits are found).
+  1    Invalid date format or no git user configured.
 HELPEOF
   exit 0
 }
@@ -144,8 +112,6 @@ for arg in "$@"; do
 done
 
 TARGET_DATE=$(resolve_date "${DATE_INPUT:-today}")
-NEXT_DATE=$(date -d "$TARGET_DATE + 1 day" +%Y-%m-%d 2>/dev/null \
-            || date -j -v+1d -f "%Y-%m-%d" "$TARGET_DATE" +%Y-%m-%d) # macOS fallback
 
 [[ ${#REPO_DIRS[@]} -eq 0 ]] && REPO_DIRS=(".")
 
@@ -194,8 +160,8 @@ while IFS= read -r repo; do
   # Get commits for this repo on the target date
   LOG=$(git -C "$repo" log \
     "$AUTHOR_FLAG" \
-    --after="$TARGET_DATE" \
-    --before="$NEXT_DATE" \
+    --after="${TARGET_DATE}T00:00:00" \
+    --before="${TARGET_DATE}T23:59:59" \
     --pretty=format:"%h|%aI|%s" \
     --no-merges \
     2>/dev/null || true)
