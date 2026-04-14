@@ -19,8 +19,11 @@ type Commit struct {
 }
 
 type RepoActivity struct {
-	Name    string
-	Commits []Commit
+	Name       string
+	Commits    []Commit
+	TotalFiles int
+	TotalIns   int
+	TotalDel   int
 }
 
 var (
@@ -33,7 +36,7 @@ func extractActivity(repos []string, date string, authors []string) []RepoActivi
 	var activities []RepoActivity
 
 	for _, repo := range repos {
-		args := []string{"-C", repo, "log", "--all",
+		args := []string{"-C", repo, "log", "--all", "--shortstat",
 			"--after=" + date + "T00:00:00",
 			"--before=" + date + "T23:59:59",
 			"--pretty=format:%h|%aI|%s|%S",
@@ -49,28 +52,35 @@ func extractActivity(repos []string, date string, authors []string) []RepoActivi
 		}
 
 		ra := RepoActivity{Name: filepath.Base(repo)}
+		lastIdx := -1
 
 		for _, line := range strings.Split(output, "\n") {
-			parts := strings.SplitN(line, "|", 4)
-			if len(parts) < 4 {
-				continue
+			if strings.Contains(line, "|") {
+				parts := strings.SplitN(line, "|", 4)
+				if len(parts) < 4 {
+					continue
+				}
+
+				c := Commit{
+					Hash:    parts[0],
+					Subject: parts[2],
+					Ref:     cleanRef(parts[3]),
+				}
+
+				if t, err := time.Parse(time.RFC3339, parts[1]); err == nil {
+					c.Time = t.Format("15:04")
+				}
+
+				ra.Commits = append(ra.Commits, c)
+				lastIdx = len(ra.Commits) - 1
+			} else if lastIdx >= 0 && strings.HasPrefix(line, " ") {
+				files, ins, del := parseDiffStat(line)
+				c := &ra.Commits[lastIdx]
+				c.Files, c.Insertions, c.Deletions = files, ins, del
+				ra.TotalFiles += files
+				ra.TotalIns += ins
+				ra.TotalDel += del
 			}
-
-			c := Commit{
-				Hash:    parts[0],
-				Subject: parts[2],
-				Ref:     cleanRef(parts[3]),
-			}
-
-			if t, err := time.Parse(time.RFC3339, parts[1]); err == nil {
-				c.Time = t.Format("15:04")
-			}
-
-			c.Files, c.Insertions, c.Deletions = parseDiffStat(
-				runGit("-C", repo, "diff", "--shortstat", parts[0]+"^.."+parts[0]),
-			)
-
-			ra.Commits = append(ra.Commits, c)
 		}
 
 		if len(ra.Commits) > 0 {
