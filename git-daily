@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# git-daily — Extract your git activity across repos for a specific day.
+# Designed as a helper for Claude Code to inject into daily notes.
+#
+# Usage:
+#   git-daily [DATE] [REPO_DIR...]
+#
+# DATE defaults to today (YYYY-MM-DD format).
+# REPO_DIRs default to the current directory. Each path is searched
+# recursively for git repositories (up to 3 levels deep).
+#
+# Examples:
+#   git-daily                          # today, repos under cwd
+#   git-daily 2026-04-14               # specific day, repos under cwd
+#   git-daily 2026-04-14 ~/projects    # specific day, repos under ~/projects
+#   git-daily today ~/work ~/oss       # today, multiple search roots
+
+help() {
+  cat <<'HELPEOF'
+<tool name="git-daily">
+  <purpose>
+    Extract a user's git commit history for a specific day across one or more
+    local repositories. Outputs structured Markdown to stdout, intended for
+    injection into daily notes, standups, or activity logs.
+  </purpose>
+
+  <when_to_use>
+    - The user asks you to summarize what they worked on today or a given day.
+    - The user wants their git activity added to a daily note or journal.
+    - The user wants a standup summary or changelog from local repos.
+    - You need to understand what code changes the user made on a specific date.
+  </when_to_use>
+
+  <invocation>
+    git-daily [DATE] [REPO_DIR...]
+  </invocation>
+
+  <arguments>
+    <arg name="DATE" required="false" default="today">
+      The target date. Accepts YYYY-MM-DD format, or the keywords "today" or
+      "yesterday". Only one date can be specified. The tool extracts activity
+      for that single calendar day (midnight to midnight, local time).
+    </arg>
+    <arg name="REPO_DIR" required="false" default="." repeatable="true">
+      One or more directories to search for git repositories. Each directory
+      is searched recursively up to 3 levels deep for .git folders. If a
+      directory is itself a git repo, it is included. Multiple directories
+      can be specified as separate arguments.
+    </arg>
+  </arguments>
+
+  <behavior>
+    - Identifies the current git user via `git config user.email` (preferred)
+      or `git config user.name` and filters commits to only that author.
+    - Merge commits are excluded (--no-merges).
+    - For each commit: reports short hash, commit message, time of day,
+      and insertions/deletions (shortstat level, no per-file breakdown).
+    - If no commits are found, prints "No git activity found for DATE." and
+      exits with code 0.
+    - Works on both Linux (GNU date) and macOS (BSD date).
+  </behavior>
+
+  <output_format>
+    Markdown printed to stdout. Structure:
+
+    ```
+    ## Git Activity — YYYY-MM-DD
+
+    _N commits across repos | +INSERTIONS -DELETIONS in FILES files_
+
+    ### repo-name (N commits)
+    - `shorthash` Commit message subject _(HH:MM)_ — +12/-3
+    - `shorthash` Another commit message _(HH:MM)_ — +45/-20
+
+    ### another-repo (N commits)
+    - `shorthash` Yet another commit _(HH:MM)_ — +8/-0
+    ```
+  </output_format>
+
+  <examples>
+    <example description="Get today's activity from repos under current directory">
+      git-daily
+    </example>
+    <example description="Get activity for a specific date from a specific directory">
+      git-daily 2026-04-14 ~/projects
+    </example>
+    <example description="Get yesterday's activity across multiple repo roots">
+      git-daily yesterday ~/work ~/oss ~/personal
+    </example>
+    <example description="Capture output into a variable for injection into a file">
+      ACTIVITY=$(git-daily 2026-04-14 ~/projects)
+    </example>
+  </examples>
+
+  <error_conditions>
+    - Exit 1: Invalid date format (not YYYY-MM-DD, "today", or "yesterday").
+    - Exit 1: No git user configured (neither user.name nor user.email set).
+    - Exit 0 with message: No commits found for the given date.
+  </error_conditions>
+
+  <dependencies>
+    git, bash, find, date, sed, sort, realpath
+  </dependencies>
+</tool>
+HELPEOF
+  exit 0
+}
+
+[[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && help
+
+# --- Resolve date -----------------------------------------------------------
+
+resolve_date() {
+  local input="${1:-today}"
+  case "$input" in
+    today)     date +%Y-%m-%d ;;
+    yesterday) date -d "yesterday" +%Y-%m-%d 2>/dev/null \
+               || date -v-1d +%Y-%m-%d ;; # macOS fallback
+    *)
+      # Validate format
+      if [[ "$input" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+        echo "$input"
+      else
+        echo "Error: Invalid date '$input'. Use YYYY-MM-DD, 'today', or 'yesterday'." >&2
+        exit 1
+      fi
+      ;;
+  esac
+}
+
+# --- Parse args --------------------------------------------------------------
+
+DATE_INPUT=""
+REPO_DIRS=()
+
+for arg in "$@"; do
+  if [[ -z "$DATE_INPUT" && ("$arg" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ || "$arg" == "today" || "$arg" == "yesterday") ]]; then
+    DATE_INPUT="$arg"
+  else
+    REPO_DIRS+=("$arg")
+  fi
+done
+
+TARGET_DATE=$(resolve_date "${DATE_INPUT:-today}")
+NEXT_DATE=$(date -d "$TARGET_DATE + 1 day" +%Y-%m-%d 2>/dev/null \
+            || date -j -v+1d -f "%Y-%m-%d" "$TARGET_DATE" +%Y-%m-%d) # macOS fallback
+
+[[ ${#REPO_DIRS[@]} -eq 0 ]] && REPO_DIRS=(".")
+
+# --- Identify git user -------------------------------------------------------
+
+GIT_USER_NAME=$(git config user.name 2>/dev/null || echo "")
+GIT_USER_EMAIL=$(git config user.email 2>/dev/null || echo "")
+
+if [[ -z "$GIT_USER_NAME" && -z "$GIT_USER_EMAIL" ]]; then
+  echo "Error: Cannot determine git user. Set git config user.name or user.email." >&2
+  exit 1
+fi
+
+# Build author match — prefer email since it's more unique
+if [[ -n "$GIT_USER_EMAIL" ]]; then
+  AUTHOR_FLAG="--author=$GIT_USER_EMAIL"
+else
+  AUTHOR_FLAG="--author=$GIT_USER_NAME"
+fi
+
+# --- Find git repos ----------------------------------------------------------
+
+find_repos() {
+  for dir in "${REPO_DIRS[@]}"; do
+    dir=$(realpath "$dir" 2>/dev/null || echo "$dir")
+    # Check if dir itself is a repo
+    if [[ -d "$dir/.git" ]]; then
+      echo "$dir"
+    fi
+    # Search up to 3 levels for nested repos
+    find "$dir" -maxdepth 3 -name ".git" -type d 2>/dev/null | while read -r gitdir; do
+      dirname "$gitdir"
+    done
+  done | sort -u
+}
+
+# --- Extract activity --------------------------------------------------------
+
+TOTAL_COMMITS=0
+TOTAL_FILES=0
+TOTAL_INSERTIONS=0
+TOTAL_DELETIONS=0
+OUTPUT=""
+
+while IFS= read -r repo; do
+  # Get commits for this repo on the target date
+  LOG=$(git -C "$repo" log \
+    "$AUTHOR_FLAG" \
+    --after="$TARGET_DATE" \
+    --before="$NEXT_DATE" \
+    --pretty=format:"%h|%aI|%s" \
+    --no-merges \
+    2>/dev/null || true)
+
+  [[ -z "$LOG" ]] && continue
+
+  REPO_NAME=$(basename "$repo")
+  REPO_OUTPUT=""
+  REPO_COMMITS=0
+
+  while IFS='|' read -r hash timestamp subject; do
+    # Get diffstat for this commit
+    STAT=$(git -C "$repo" diff --shortstat "${hash}^..${hash}" 2>/dev/null || true)
+
+    files=0; ins=0; del=0
+    if [[ -n "$STAT" ]]; then
+      files=$(echo "$STAT" | sed -n 's/.*\([0-9][0-9]*\) file.*/\1/p')
+      ins=$(echo "$STAT" | sed -n 's/.*\([0-9][0-9]*\) insertion.*/\1/p')
+      del=$(echo "$STAT" | sed -n 's/.*\([0-9][0-9]*\) deletion.*/\1/p')
+      [[ -z "$files" ]] && files=0
+      [[ -z "$ins" ]] && ins=0
+      [[ -z "$del" ]] && del=0
+    fi
+
+    time_part=$(echo "$timestamp" | sed -n 's/.*T\([0-9][0-9]:[0-9][0-9]\).*/\1/p')
+
+    REPO_OUTPUT+="- \`${hash}\` ${subject}"
+    [[ -n "$time_part" ]] && REPO_OUTPUT+=" _(${time_part})_"
+    [[ "$ins" -gt 0 || "$del" -gt 0 ]] && REPO_OUTPUT+=" — +${ins}/-${del}"
+    REPO_OUTPUT+=$'\n'
+
+    REPO_COMMITS=$((REPO_COMMITS + 1))
+    TOTAL_FILES=$((TOTAL_FILES + files))
+    TOTAL_INSERTIONS=$((TOTAL_INSERTIONS + ins))
+    TOTAL_DELETIONS=$((TOTAL_DELETIONS + del))
+  done <<< "$LOG"
+
+  TOTAL_COMMITS=$((TOTAL_COMMITS + REPO_COMMITS))
+
+  OUTPUT+="### ${REPO_NAME} (${REPO_COMMITS} commits)"$'\n'
+  OUTPUT+="${REPO_OUTPUT}"$'\n'
+
+done < <(find_repos)
+
+# --- Print output ------------------------------------------------------------
+
+if [[ $TOTAL_COMMITS -eq 0 ]]; then
+  echo "No git activity found for ${TARGET_DATE}."
+  exit 0
+fi
+
+echo "## Git Activity — ${TARGET_DATE}"
+echo ""
+echo "_${TOTAL_COMMITS} commits across repos | +${TOTAL_INSERTIONS} -${TOTAL_DELETIONS} in ${TOTAL_FILES} files_"
+echo ""
+echo "$OUTPUT"
+
