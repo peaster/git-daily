@@ -37,6 +37,7 @@ brews:
   - repository:
       owner: peaster
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     name: git-daily
     homepage: https://github.com/peaster/git-daily
     description: Extract your git activity across repos for a specific period of time.
