@@ -1,0 +1,47 @@
+version: 2
+
+builds:
+  - binary: git-daily
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+brews:
+  - repository:
+      owner: peaster
+      name: homebrew-tap
+    name: git-daily
+    homepage: https://github.com/peaster/git-daily
+    description: Extract your git activity across repos for a specific day
+    license: MIT
+    install: |
+      bin.install "git-daily"
+    test: |
+      system bin/"git-daily", "--help"
