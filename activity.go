@@ -85,6 +85,7 @@ func cleanRef(ref string) string {
 	ref = strings.TrimPrefix(ref, "refs/original/refs/heads/")
 	ref = strings.TrimPrefix(ref, "refs/heads/")
 	if strings.HasPrefix(ref, "refs/remotes/") {
+		// Strip refs/remotes/<remote>/
 		if _, after, ok := strings.Cut(ref[len("refs/remotes/"):], "/"); ok {
 			ref = after
 		}

@@ -12,6 +12,7 @@ var (
 )
 
 func main() {
+	// Check for help flag before any other processing
 	for _, arg := range os.Args[1:] {
 		if arg == "-h" || arg == "--help" {
 			printHelp()
