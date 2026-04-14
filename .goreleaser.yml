@@ -39,7 +39,7 @@ brews:
       name: homebrew-tap
     name: git-daily
     homepage: https://github.com/peaster/git-daily
-    description: Extract your git activity across repos for a specific day
+    description: Extract your git activity across repos for a specific period of time.
     license: MIT
     install: |
       bin.install "git-daily"
