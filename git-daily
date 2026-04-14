@@ -53,9 +53,11 @@ ENVIRONMENT
 
 BEHAVIOR
   - Matches commits by any of the configured author identities.
+  - Searches all branches and tags (--all), reporting the source
+    branch or tag for each commit.
   - Merge commits are excluded.
   - For each commit: reports short hash, commit message, time of day,
-    and insertions/deletions.
+    insertions/deletions, and source ref (branch or tag).
   - If no commits are found, prints a message and exits with code 0.
   - Works on both Linux (GNU date) and macOS (BSD date).
 
@@ -67,7 +69,7 @@ OUTPUT
     > N commits across repos · +INSERTIONS/-DELETIONS lines · FILES files changed
 
     ### repo-name (N commits)
-    - **HH:MM** `shorthash` Commit message (+12/-3)
+    - **HH:MM** `shorthash` Commit message (+12/-3) · `branch-name`
 
 EXAMPLES
   git-daily                              # today, repos under cwd
@@ -174,7 +176,7 @@ while IFS= read -r repo; do
     "${AUTHOR_FLAGS[@]}" \
     --after="${TARGET_DATE}T00:00:00" \
     --before="${TARGET_DATE}T23:59:59" \
-    --pretty=format:"%h|%aI|%s" \
+    --pretty=format:"%h|%aI|%s|%S" \
     --no-merges \
     2>/dev/null || true)
 
@@ -184,7 +186,13 @@ while IFS= read -r repo; do
   REPO_OUTPUT=""
   REPO_COMMITS=0
 
-  while IFS='|' read -r hash timestamp subject; do
+  while IFS='|' read -r hash timestamp subject source_ref; do
+    # Clean source ref into readable name
+    ref=$(echo "$source_ref" | sed \
+      -e 's|^refs/original/refs/heads/||' \
+      -e 's|^refs/heads/||' \
+      -e 's|^refs/remotes/[^/]*/||' \
+      -e 's|^refs/tags/|tag:|')
     # Get diffstat for this commit
     STAT=$(git -C "$repo" diff --shortstat "${hash}^..${hash}" 2>/dev/null || true)
 
@@ -204,6 +212,7 @@ while IFS= read -r repo; do
     [[ -n "$time_part" ]] && REPO_OUTPUT+="**${time_part}** "
     REPO_OUTPUT+="\`${hash}\` ${subject}"
     [[ "$ins" -gt 0 || "$del" -gt 0 ]] && REPO_OUTPUT+=" (+${ins}/-${del})"
+    [[ -n "$ref" ]] && REPO_OUTPUT+=" · \`${ref}\`"
     REPO_OUTPUT+=$'\n'
 
     REPO_COMMITS=$((REPO_COMMITS + 1))
