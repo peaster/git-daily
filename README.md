@@ -3,7 +3,7 @@
 Extract your git activity across repos for a specific day. Outputs clean Markdown, designed as a helper for daily notes and standups.
 
 ```
-$ git-daily 2026-04-14 ~/projects
+$ git daily 2026-04-14 ~/projects
 
 ## Git Activity — 2026-04-14
 
@@ -37,7 +37,7 @@ go install github.com/peaster/git-daily@latest
 ## Usage
 
 ```
-git-daily [OPTIONS] [DATE] [REPO_DIR...]
+git daily [OPTIONS] [DATE] [REPO_DIR...]
 ```
 
 | Argument | Description |
@@ -53,11 +53,14 @@ git-daily [OPTIONS] [DATE] [REPO_DIR...]
 **Examples:**
 
 ```bash
-git-daily                              # today, repos under cwd
-git-daily yesterday                    # yesterday
-git-daily 2026-04-14 ~/projects        # specific day, specific directory
-git-daily today ~/work ~/oss           # multiple search roots
+git daily                              # today, repos under cwd
+git daily yesterday                    # yesterday
+git daily 2026-04-14 ~/projects        # specific day, specific directory
+git daily today ~/work ~/oss           # multiple search roots
 ```
+
+> [!TIP]
+> Since the binary is named `git-daily`, git picks it up as a subcommand automatically — you can invoke it as `git daily` (shown above) and it shows up in git's tab completion. Invoking as `git-daily` works too.
 
 ## Configuration
 
