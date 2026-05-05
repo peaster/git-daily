@@ -10,11 +10,11 @@ $ git daily 2026-04-14 ~/projects
 > 3 commits across repos · +89/-12 lines · 5 files changed
 
 ### my-app (2 commits)
-- **14:32** `a1b2c3d` add user profile endpoint (+65/-8) · `feature/profiles`
-- **10:15** `e4f5a6b` fix auth middleware token refresh (+12/-4) · `main`
+- **14:32** [`a1b2c3d`](https://github.com/me/my-app/commit/a1b2c3d) add user profile endpoint (+65/-8) · `feature/profiles`
+- **10:15** [`e4f5a6b`](https://github.com/me/my-app/commit/e4f5a6b) fix auth middleware token refresh (+12/-4) · `main`
 
 ### dotfiles (1 commits)
-- **09:03** `c7d8e9f` update neovim config (+12/-0) · `main`
+- **09:03** [`c7d8e9f`](https://github.com/me/dotfiles/commit/c7d8e9f) update neovim config (+12/-0) · `main`
 ```
 
 ## Install
@@ -78,6 +78,7 @@ If unset, falls back to `git config user.name` and `user.email`.
 - Excludes merge commits
 - Reports source branch or tag for each commit
 - Reports per-commit insertions/deletions and files changed
+- Links each commit hash to the remote's web URL when a remote is configured (works across GitHub, GitLab, Gitea, Azure DevOps, …)
 - Exits 0 on success (including no activity found), 1 on errors
 
 ## Building from source

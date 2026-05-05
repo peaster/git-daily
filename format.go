@@ -31,7 +31,11 @@ func formatMarkdown(date string, activities []RepoActivity) string {
 			if c.Time != "" {
 				fmt.Fprintf(&b, "**%s** ", c.Time)
 			}
-			fmt.Fprintf(&b, "`%s` %s", c.Hash, c.Subject)
+			if url := commitURL(ra.RemoteURL, c.Hash); url != "" {
+				fmt.Fprintf(&b, "[`%s`](%s) %s", c.Hash, url, c.Subject)
+			} else {
+				fmt.Fprintf(&b, "`%s` %s", c.Hash, c.Subject)
+			}
 			if c.Insertions > 0 || c.Deletions > 0 {
 				fmt.Fprintf(&b, " (+%d/-%d)", c.Insertions, c.Deletions)
 			}
