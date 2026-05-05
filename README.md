@@ -49,6 +49,8 @@ git daily [OPTIONS] [DATE] [REPO_DIR...]
 
 - `-h`, `--help` — show help
 - `-v`, `--version` — print version
+- `--plain` / `--no-color` — output raw markdown even when stdout is a TTY
+- `--style NAME` — Glamour theme: `dark`, `light`, `dracula`, `tokyo-night`, `pink`, `ascii`, `notty`, or path to a Glamour JSON style file
 
 **Examples:**
 
@@ -71,6 +73,12 @@ export GIT_DAILY_AUTHORS="peaster,paul@work.com,paul@home.com"
 ```
 
 If unset, falls back to `git config user.name` and `user.email`.
+
+`NO_COLOR` (any value) and `GLAMOUR_STYLE` are also honored. `NO_COLOR` forces raw markdown output; `GLAMOUR_STYLE` sets the default theme (overridden by `--style`).
+
+## Terminal rendering
+
+When stdout is a terminal, `git-daily` renders the markdown to ANSI-styled output with colored headings, hyperlinked commit hashes (OSC 8), and tinted inline code. When piped or redirected, raw markdown is emitted unchanged — so `git daily > today.md`, `ACTIVITY=$(git daily)`, and `git daily | pbcopy` keep working as before.
 
 ## Behavior
 
