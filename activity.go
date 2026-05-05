@@ -20,6 +20,7 @@ type Commit struct {
 
 type RepoActivity struct {
 	Name       string
+	RemoteURL  string
 	Commits    []Commit
 	TotalFiles int
 	TotalIns   int
@@ -51,7 +52,7 @@ func extractActivity(repos []string, date string, authors []string) []RepoActivi
 			continue
 		}
 
-		ra := RepoActivity{Name: filepath.Base(repo)}
+		ra := RepoActivity{Name: filepath.Base(repo), RemoteURL: remoteURL(repo)}
 		lastIdx := -1
 
 		for _, line := range strings.Split(output, "\n") {

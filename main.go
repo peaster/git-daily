@@ -117,6 +117,8 @@ BEHAVIOR
   - Merge commits are excluded.
   - For each commit: reports short hash, commit message, time of day,
     insertions/deletions, and source ref (branch or tag).
+  - The short hash links to the remote's commit URL when a remote is
+    configured (origin preferred, else the first remote).
   - If no commits are found, prints a message and exits with code 0.
 
 OUTPUT
@@ -127,7 +129,7 @@ OUTPUT
     > N commits across repos · +INSERTIONS/-DELETIONS lines · FILES files changed
 
     ### repo-name (N commits)
-    - **HH:MM** ` + "`" + `shorthash` + "`" + ` Commit message (+12/-3) · ` + "`" + `branch-name` + "`" + `
+    - **HH:MM** [` + "`" + `shorthash` + "`" + `](REMOTE_URL/commit/SHA) Commit message (+12/-3) · ` + "`" + `branch-name` + "`" + `
 
 EXAMPLES
   git-daily                              # today, repos under cwd
