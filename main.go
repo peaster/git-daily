@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 )
 
 var (
@@ -24,7 +25,11 @@ func main() {
 		}
 	}
 
-	dateInput, repoDirs := parseArgs(os.Args[1:])
+	dateInput, repoDirs, plain, style, err := parseArgs(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		os.Exit(1)
+	}
 
 	date, err := resolveDate(dateInput)
 	if err != nil {
@@ -47,17 +52,26 @@ func main() {
 		return
 	}
 
-	fmt.Print(output)
+	renderForOutput(output, plain, style)
 }
 
-func parseArgs(args []string) (string, []string) {
-	var dateInput string
-	var repoDirs []string
-
-	for _, arg := range args {
-		if dateInput == "" && isDateArg(arg) {
+func parseArgs(args []string) (dateInput string, repoDirs []string, plain bool, style string, err error) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--plain" || arg == "--no-color":
+			plain = true
+		case arg == "--style":
+			if i+1 >= len(args) {
+				return "", nil, false, "", fmt.Errorf("--style requires a value")
+			}
+			i++
+			style = args[i]
+		case strings.HasPrefix(arg, "--style="):
+			style = strings.TrimPrefix(arg, "--style=")
+		case dateInput == "" && isDateArg(arg):
 			dateInput = arg
-		} else {
+		default:
 			repoDirs = append(repoDirs, arg)
 		}
 	}
@@ -69,7 +83,7 @@ func parseArgs(args []string) (string, []string) {
 		repoDirs = []string{"."}
 	}
 
-	return dateInput, repoDirs
+	return dateInput, repoDirs, plain, style, nil
 }
 
 func isDateArg(s string) bool {
@@ -83,8 +97,14 @@ USAGE
   git-daily [OPTIONS] [DATE] [REPO_DIR...]
 
 OPTIONS
-  -h, --help       Show this help message and exit.
-  -v, --version    Print version and exit.
+  -h, --help          Show this help message and exit.
+  -v, --version       Print version and exit.
+      --plain         Output raw markdown even when stdout is a TTY.
+      --no-color      Alias for --plain.
+      --style NAME    Glamour style for rendered output. One of:
+                        dark, light, dracula, tokyo-night, pink, ascii, notty
+                      Or a path to a Glamour JSON style file.
+                      Overrides $GLAMOUR_STYLE.
 
 ARGUMENTS
   DATE          The target date for activity lookup.
@@ -110,6 +130,12 @@ ENVIRONMENT
                       If not set, falls back to git config user.email and
                       user.name from the current environment.
 
+  NO_COLOR            If set (any value), output raw markdown instead of
+                      styled ANSI. See https://no-color.org.
+
+  GLAMOUR_STYLE       Default rendering style when --style is not given.
+                      Same accepted values as --style.
+
 BEHAVIOR
   - Matches commits by any of the configured author identities.
   - Searches all branches and tags (--all), reporting the source
@@ -120,9 +146,13 @@ BEHAVIOR
   - The short hash links to the remote's commit URL when a remote is
     configured (origin preferred, else the first remote).
   - If no commits are found, prints a message and exits with code 0.
+  - When stdout is a terminal, output is rendered with ANSI styling.
+    When piped or redirected (e.g. ` + "`" + `git-daily > today.md` + "`" + `,
+    ` + "`" + `ACTIVITY=$(git-daily)` + "`" + `), raw markdown is emitted unchanged so
+    capture and redirect flows are unaffected.
 
 OUTPUT
-  Markdown printed to stdout:
+  Markdown printed to stdout (rendered to ANSI when on a TTY):
 
     ## Git Activity — YYYY-MM-DD
 
@@ -137,6 +167,8 @@ EXAMPLES
   git-daily 2026-04-14 ~/projects        # specific day, specific directory
   git-daily yesterday ~/work ~/oss       # yesterday, multiple search roots
   ACTIVITY=$(git-daily 2026-04-14)       # capture output into a variable
+  git-daily --plain                      # force raw markdown on a TTY
+  git-daily --style dracula              # use the Dracula theme
 
 EXIT CODES
   0    Success (including when no commits are found).
