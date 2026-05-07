@@ -137,15 +137,20 @@ ENVIRONMENT
                       Same accepted values as --style.
 
 BEHAVIOR
-  - Matches commits by any of the configured author identities.
-  - Searches all branches and tags (--all), reporting the source
-    branch or tag for each commit.
-  - Merge commits are excluded.
-  - For each commit: reports short hash, commit message, time of day,
-    insertions/deletions, and source ref (branch or tag).
+  - Surfaces commits, merges, branches created, and tags created.
+  - Matches events by any of the configured author identities. Events
+    whose author/committer/tagger email cannot be matched are dropped.
+  - Searches all branches and tags (--all) for commits and merges,
+    reporting the source branch or tag for each.
+  - Branch creations are detected via the branch's reflog (oldest
+    entry); pruned reflogs may miss older creations.
+  - Tag creations use the tagger date for annotated tags and the
+    underlying commit's date for lightweight tags.
+  - For each commit/merge: reports short hash, message, time of day,
+    insertions/deletions, and source ref. Merges are prefixed [merge].
   - The short hash links to the remote's commit URL when a remote is
     configured (origin preferred, else the first remote).
-  - If no commits are found, prints a message and exits with code 0.
+  - If no events are found, prints a message and exits with code 0.
   - When stdout is a terminal, output is rendered with ANSI styling.
     When piped or redirected (e.g. ` + "`" + `git-daily > today.md` + "`" + `,
     ` + "`" + `ACTIVITY=$(git-daily)` + "`" + `), raw markdown is emitted unchanged so
@@ -156,10 +161,13 @@ OUTPUT
 
     ## Git Activity — YYYY-MM-DD
 
-    > N commits across repos · +INSERTIONS/-DELETIONS lines · FILES files changed
+    > N commits, M merges, B branches, T tags across repos · +INS/-DEL lines · FILES files changed
 
-    ### repo-name (N commits)
+    ### repo-name (N events)
     - **HH:MM** [` + "`" + `shorthash` + "`" + `](REMOTE_URL/commit/SHA) Commit message (+12/-3) · ` + "`" + `branch-name` + "`" + `
+    - **HH:MM** [merge] [` + "`" + `shorthash` + "`" + `](REMOTE_URL/commit/SHA) Merge subject · ` + "`" + `main` + "`" + `
+    - **HH:MM** [branch] Created ` + "`" + `branch-name` + "`" + ` from ` + "`" + `source-ref` + "`" + `
+    - **HH:MM** [tag] Created ` + "`" + `tag-name` + "`" + ` ([` + "`" + `shorthash` + "`" + `](REMOTE_URL/commit/SHA)) — Tag message
 
 EXAMPLES
   git-daily                              # today, repos under cwd

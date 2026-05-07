@@ -7,13 +7,15 @@ $ git daily 2026-04-14 ~/projects
 
 ## Git Activity — 2026-04-14
 
-> 3 commits across repos · +89/-12 lines · 5 files changed
+> 2 commits, 1 merge, 1 branch, 1 tag across repos · +89/-12 lines · 5 files changed
 
-### my-app (2 commits)
+### my-app (4 events)
 - **14:32** [`a1b2c3d`](https://github.com/me/my-app/commit/a1b2c3d) add user profile endpoint (+65/-8) · `feature/profiles`
-- **10:15** [`e4f5a6b`](https://github.com/me/my-app/commit/e4f5a6b) fix auth middleware token refresh (+12/-4) · `main`
+- **13:15** [merge] [`e4f5a6b`](https://github.com/me/my-app/commit/e4f5a6b) Merge pull request #42 from feature/profiles · `main`
+- **11:40** [branch] Created `feature/profiles` from `main`
+- **10:05** [tag] Created `v1.2.0` ([`c7d8e9f`](https://github.com/me/my-app/commit/c7d8e9f)) — Release 1.2.0
 
-### dotfiles (1 commits)
+### dotfiles (1 commit)
 - **09:03** [`c7d8e9f`](https://github.com/me/dotfiles/commit/c7d8e9f) update neovim config (+12/-0) · `main`
 ```
 
@@ -82,10 +84,13 @@ When stdout is a terminal, `git-daily` renders the markdown to ANSI-styled outpu
 
 ## Behavior
 
-- Searches all branches and tags (`--all`)
-- Excludes merge commits
-- Reports source branch or tag for each commit
+- Surfaces commits, merges, branches created, and tags created
+- Searches all branches and tags (`--all`) for commits/merges
+- Branches: detects creation via the branch's reflog (oldest entry)
+- Tags: detects annotated tags via tagger date, lightweight tags via the underlying commit's date
+- Reports source branch or tag for each commit; for new branches, reports the source they were created from
 - Reports per-commit insertions/deletions and files changed
+- Strict author filter: only includes events whose author/committer/tagger email matches `GIT_DAILY_AUTHORS` (or `git config user.email`/`user.name` fallback)
 - Links each commit hash to the remote's web URL when a remote is configured (works across GitHub, GitLab, Gitea, Azure DevOps, …)
 - Exits 0 on success (including no activity found), 1 on errors
 
