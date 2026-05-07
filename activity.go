@@ -16,7 +16,17 @@ const (
 	KindMerge
 	KindBranch
 	KindTag
+	numKinds
 )
+
+var kindLabels = [numKinds]struct {
+	Singular, Plural string
+}{
+	KindCommit: {"commit", "commits"},
+	KindMerge:  {"merge", "merges"},
+	KindBranch: {"branch", "branches"},
+	KindTag:    {"tag", "tags"},
+}
 
 type Event struct {
 	Kind       EventKind
@@ -35,13 +45,23 @@ type RepoActivity struct {
 	Name       string
 	RemoteURL  string
 	Events     []Event
-	Commits    int
-	Merges     int
-	Branches   int
-	Tags       int
+	Counts     [numKinds]int
 	TotalFiles int
 	TotalIns   int
 	TotalDel   int
+}
+
+func (ra *RepoActivity) addEvent(ev Event) {
+	ra.Events = append(ra.Events, ev)
+	ra.Counts[ev.Kind]++
+}
+
+func inDayBounds(t, start, end time.Time) bool {
+	return !t.Before(start) && t.Before(end)
+}
+
+func trimEmailBrackets(s string) string {
+	return strings.Trim(strings.TrimSpace(s), "<>")
 }
 
 var (
@@ -126,13 +146,11 @@ func extractCommitsAndMerges(repo, date string, authors []string, ra *RepoActivi
 
 			if strings.Contains(strings.TrimSpace(parts[4]), " ") {
 				ev.Kind = KindMerge
-				ra.Merges++
 			} else {
 				ev.Kind = KindCommit
-				ra.Commits++
 			}
 
-			ra.Events = append(ra.Events, ev)
+			ra.addEvent(ev)
 			lastIdx = len(ra.Events) - 1
 		} else if lastIdx >= 0 && strings.HasPrefix(line, " ") {
 			files, ins, del := parseDiffStat(line)
@@ -169,23 +187,21 @@ func extractBranches(repo string, dayStart, dayEnd time.Time, authors []string, 
 		if !ok {
 			continue
 		}
-		if ev.When.Before(dayStart) || !ev.When.Before(dayEnd) {
+		if !inDayBounds(ev.When, dayStart, dayEnd) {
 			continue
 		}
 		if !authorMatches(ev.subjectAuthor, authors) {
 			continue
 		}
 
-		event := Event{
+		ra.addEvent(Event{
 			Kind: KindBranch,
 			When: ev.When,
 			Time: ev.When.Local().Format("15:04"),
 			Name: branch,
 			Hash: ev.Hash,
 			Ref:  ev.Source,
-		}
-		ra.Events = append(ra.Events, event)
-		ra.Branches++
+		})
 	}
 }
 
@@ -249,7 +265,7 @@ func extractTags(repo string, dayStart, dayEnd time.Time, authors []string, ra *
 		if !ok {
 			continue
 		}
-		if ev.When.Before(dayStart) || !ev.When.Before(dayEnd) {
+		if !inDayBounds(ev.When, dayStart, dayEnd) {
 			continue
 		}
 
@@ -263,16 +279,14 @@ func extractTags(repo string, dayStart, dayEnd time.Time, authors []string, ra *
 			continue
 		}
 
-		event := Event{
+		ra.addEvent(Event{
 			Kind:    KindTag,
 			When:    ev.When,
 			Time:    ev.When.Local().Format("15:04"),
 			Name:    ev.Name,
 			Hash:    ev.CommitShort,
 			Subject: ev.Subject,
-		}
-		ra.Events = append(ra.Events, event)
-		ra.Tags++
+		})
 	}
 }
 
@@ -304,15 +318,15 @@ func parseTagRefLine(line, sep string) (tagRefEntry, bool) {
 		Name:        parts[0],
 		IsAnnotated: annotated,
 		When:        t,
-		TaggerEmail: strings.Trim(strings.TrimSpace(parts[3]), "<>"),
-		AuthorEmail: strings.Trim(strings.TrimSpace(parts[4]), "<>"),
+		TaggerEmail: trimEmailBrackets(parts[3]),
+		AuthorEmail: trimEmailBrackets(parts[4]),
 		Subject:     parts[5],
 		CommitShort: commitShort,
 	}, true
 }
 
 func authorMatches(candidate string, authors []string) bool {
-	candidate = strings.ToLower(strings.Trim(strings.TrimSpace(candidate), "<>"))
+	candidate = strings.ToLower(trimEmailBrackets(candidate))
 	if candidate == "" {
 		return false
 	}
