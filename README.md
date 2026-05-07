@@ -11,9 +11,9 @@ $ git daily 2026-04-14 ~/projects
 
 ### my-app (4 events)
 - **14:32** [`a1b2c3d`](https://github.com/me/my-app/commit/a1b2c3d) add user profile endpoint (+65/-8) · `feature/profiles`
-- **13:15** [merge] [`e4f5a6b`](https://github.com/me/my-app/commit/e4f5a6b) Merge pull request #42 from feature/profiles · `main`
+- **13:15** [merge] [`9d8c7b6`](https://github.com/me/my-app/commit/9d8c7b6) Merge pull request #42 from feature/profiles · `main`
 - **11:40** [branch] Created `feature/profiles` from `main`
-- **10:05** [tag] Created `v1.2.0` ([`c7d8e9f`](https://github.com/me/my-app/commit/c7d8e9f)) — Release 1.2.0
+- **10:05** [tag] Created `v1.2.0` ([`a9b8c7d`](https://github.com/me/my-app/commit/a9b8c7d)) — Release 1.2.0
 
 ### dotfiles (1 commit)
 - **09:03** [`c7d8e9f`](https://github.com/me/dotfiles/commit/c7d8e9f) update neovim config (+12/-0) · `main`

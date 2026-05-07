@@ -157,14 +157,14 @@ func extractBranches(repo string, dayStart, dayEnd time.Time, authors []string, 
 			continue
 		}
 
-		out := runGit("-C", repo, "log", "-g", "--date=iso-strict",
-			"--pretty=format:%h|%gd|%ce|%gs", branch)
+		out := runGit("-C", repo, "log", "-g", "--max-count=1",
+			"--grep-reflog=^branch: Created from ",
+			"--date=iso-strict", "--pretty=format:%h|%gd|%ce|%gs", branch)
 		if out == "" {
 			continue
 		}
 
-		lines := strings.Split(out, "\n")
-		oldest := lines[len(lines)-1]
+		oldest := strings.SplitN(out, "\n", 2)[0]
 		ev, ok := parseBranchReflogLine(oldest)
 		if !ok {
 			continue
@@ -177,13 +177,12 @@ func extractBranches(repo string, dayStart, dayEnd time.Time, authors []string, 
 		}
 
 		event := Event{
-			Kind:    KindBranch,
-			When:    ev.When,
-			Time:    ev.When.Local().Format("15:04"),
-			Name:    branch,
-			Hash:    ev.Hash,
-			Ref:     ev.Source,
-			Subject: ev.Reason,
+			Kind: KindBranch,
+			When: ev.When,
+			Time: ev.When.Local().Format("15:04"),
+			Name: branch,
+			Hash: ev.Hash,
+			Ref:  ev.Source,
 		}
 		ra.Events = append(ra.Events, event)
 		ra.Branches++
@@ -195,7 +194,6 @@ type branchReflogEntry struct {
 	When          time.Time
 	subjectAuthor string
 	Source        string
-	Reason        string
 }
 
 func parseBranchReflogLine(line string) (branchReflogEntry, bool) {
@@ -206,31 +204,25 @@ func parseBranchReflogLine(line string) (branchReflogEntry, bool) {
 
 	gd := parts[1]
 	open := strings.Index(gd, "{")
-	close := strings.LastIndex(gd, "}")
-	if open == -1 || close == -1 || close <= open {
+	closeIdx := strings.LastIndex(gd, "}")
+	if open == -1 || closeIdx == -1 || closeIdx <= open {
 		return branchReflogEntry{}, false
 	}
-	dateStr := gd[open+1 : close]
-	t, err := time.Parse(time.RFC3339, dateStr)
+	t, err := time.Parse(time.RFC3339, gd[open+1:closeIdx])
 	if err != nil {
-		t, err = time.Parse("2006-01-02 15:04:05 -0700", dateStr)
-		if err != nil {
-			return branchReflogEntry{}, false
-		}
+		return branchReflogEntry{}, false
 	}
 
-	subject := parts[3]
-	source := ""
-	if rest, ok := strings.CutPrefix(subject, "branch: Created from "); ok {
-		source = cleanRef(strings.TrimSpace(rest))
+	rest, ok := strings.CutPrefix(parts[3], "branch: Created from ")
+	if !ok {
+		return branchReflogEntry{}, false
 	}
 
 	return branchReflogEntry{
 		Hash:          parts[0],
 		When:          t,
 		subjectAuthor: parts[2],
-		Source:        source,
-		Reason:        subject,
+		Source:        cleanRef(strings.TrimSpace(rest)),
 	}, true
 }
 
@@ -329,7 +321,7 @@ func authorMatches(candidate string, authors []string) bool {
 		if a == "" {
 			continue
 		}
-		if strings.Contains(candidate, a) || strings.Contains(a, candidate) {
+		if strings.Contains(candidate, a) {
 			return true
 		}
 	}
