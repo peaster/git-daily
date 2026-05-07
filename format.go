@@ -6,19 +6,21 @@ import (
 )
 
 func formatMarkdown(date string, activities []RepoActivity) string {
-	var totalCommits, totalMerges, totalBranches, totalTags int
+	var totals [numKinds]int
 	var totalFiles, totalIns, totalDel int
 	for _, ra := range activities {
-		totalCommits += ra.Commits
-		totalMerges += ra.Merges
-		totalBranches += ra.Branches
-		totalTags += ra.Tags
+		for k, n := range ra.Counts {
+			totals[k] += n
+		}
 		totalFiles += ra.TotalFiles
 		totalIns += ra.TotalIns
 		totalDel += ra.TotalDel
 	}
 
-	totalEvents := totalCommits + totalMerges + totalBranches + totalTags
+	totalEvents := 0
+	for _, n := range totals {
+		totalEvents += n
+	}
 	if totalEvents == 0 {
 		return ""
 	}
@@ -27,7 +29,7 @@ func formatMarkdown(date string, activities []RepoActivity) string {
 
 	fmt.Fprintf(&b, "## Git Activity — %s\n\n", date)
 	fmt.Fprintf(&b, "> %s across repos · +%d/-%d lines · %d files changed\n\n",
-		summarizeCounts(totalCommits, totalMerges, totalBranches, totalTags),
+		summarizeCounts(totals),
 		totalIns, totalDel, totalFiles)
 
 	for _, ra := range activities {
@@ -90,49 +92,26 @@ func writeCommitBody(b *strings.Builder, remoteURL string, ev Event) {
 	}
 }
 
-func summarizeCounts(commits, merges, branches, tags int) string {
-	parts := make([]string, 0, 4)
-	if commits > 0 {
-		parts = append(parts, plural(commits, "commit", "commits"))
-	}
-	if merges > 0 {
-		parts = append(parts, plural(merges, "merge", "merges"))
-	}
-	if branches > 0 {
-		parts = append(parts, plural(branches, "branch", "branches"))
-	}
-	if tags > 0 {
-		parts = append(parts, plural(tags, "tag", "tags"))
+func summarizeCounts(counts [numKinds]int) string {
+	parts := make([]string, 0, numKinds)
+	for k, n := range counts {
+		if n > 0 {
+			parts = append(parts, plural(n, kindLabels[k].Singular, kindLabels[k].Plural))
+		}
 	}
 	return strings.Join(parts, ", ")
 }
 
 func repoHeading(ra RepoActivity) string {
-	kindsPresent := 0
-	if ra.Commits > 0 {
-		kindsPresent++
-	}
-	if ra.Merges > 0 {
-		kindsPresent++
-	}
-	if ra.Branches > 0 {
-		kindsPresent++
-	}
-	if ra.Tags > 0 {
-		kindsPresent++
-	}
-
-	if kindsPresent <= 1 {
-		switch {
-		case ra.Commits > 0:
-			return plural(ra.Commits, "commit", "commits")
-		case ra.Merges > 0:
-			return plural(ra.Merges, "merge", "merges")
-		case ra.Branches > 0:
-			return plural(ra.Branches, "branch", "branches")
-		case ra.Tags > 0:
-			return plural(ra.Tags, "tag", "tags")
+	seen, only := 0, 0
+	for k, n := range ra.Counts {
+		if n > 0 {
+			seen++
+			only = k
 		}
+	}
+	if seen == 1 {
+		return plural(ra.Counts[only], kindLabels[only].Singular, kindLabels[only].Plural)
 	}
 	return plural(len(ra.Events), "event", "events")
 }
