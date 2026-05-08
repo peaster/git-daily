@@ -28,6 +28,22 @@ brew tap peaster/tap
 brew install git-daily
 ```
 
+**Debian/Ubuntu (.deb):**
+
+```bash
+curl -LO https://github.com/peaster/git-daily/releases/latest/download/git-daily_<version>_linux_amd64.deb
+sudo dpkg -i git-daily_<version>_linux_amd64.deb
+```
+
+Replace `<version>` with the tag from [GitHub Releases](https://github.com/peaster/git-daily/releases). `linux_arm64.deb` is also published.
+
+**Arch (AUR):**
+
+```bash
+yay -S git-daily-bin
+# or: paru -S git-daily-bin
+```
+
 **Go:**
 
 ```bash

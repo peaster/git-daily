@@ -46,3 +46,43 @@ brews:
       bin.install "git-daily"
     test: |
       system bin/"git-daily", "--help"
+
+nfpms:
+  - id: git-daily
+    package_name: git-daily
+    vendor: peaster
+    homepage: https://github.com/peaster/git-daily
+    maintainer: peaster
+    description: Extract your git activity across repos for a specific day.
+    license: MIT
+    formats:
+      - deb
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/git-daily/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/git-daily/README.md
+    dependencies:
+      - git
+
+aurs:
+  - name: git-daily-bin
+    homepage: https://github.com/peaster/git-daily
+    description: Extract your git activity across repos for a specific day.
+    maintainers:
+      - "peaster"
+    license: MIT
+    private_key: "{{ .Env.AUR_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/git-daily-bin.git"
+    depends:
+      - git
+    package: |-
+      install -Dm755 "./git-daily" "${pkgdir}/usr/bin/git-daily"
+      install -Dm644 "./LICENSE"   "${pkgdir}/usr/share/licenses/git-daily-bin/LICENSE"
+      install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/git-daily-bin/README.md"
+    commit_author:
+      name: peaster
+      email: git@peaster.io
