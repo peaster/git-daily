@@ -6,7 +6,7 @@ Extract your git activity across repos for a specific day. Outputs clean Markdow
 
 ## Install
 
-**Homebrew:**
+**Homebrew (macOS/Linux):**
 
 ```bash
 brew tap peaster/tap
@@ -35,7 +35,7 @@ yay -S git-daily-bin
 go install github.com/peaster/git-daily@latest
 ```
 
-**Binary:** download from [GitHub Releases](https://github.com/peaster/git-daily/releases).
+**Prebuilt binaries (macOS, Linux, Windows):** for any platform without a package-manager entry above — notably Windows — download the archive for your OS/arch from [GitHub Releases](https://github.com/peaster/git-daily/releases), extract it, and put `git-daily` somewhere on your `PATH`. Archives are published for `darwin`/`linux`/`windows` on both `amd64` and `arm64`.
 
 ## Usage
 
